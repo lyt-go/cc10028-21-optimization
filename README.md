@@ -77,5 +77,47 @@ npm run dev
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
 
-领域：数据工程
+## 版本差异与增量交付
+
+文档版本模块除了数量统计，还会把实体、关系的记录级身份快照写入
+`data/versions/<文档>_v<版本>.records.json`（下称记录附件）。因此当
+两个版本的实体数、关系数完全相同时，仍能定位具体被删除的记录、
+换了端点的关系，并形成版本差异选交清单。
+
+### 接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/doc_version/compare?doc_id=&version_a=&version_b=&receiver_id=&receiver_has_baseline=&baseline_verified=` | 记录级差异 + 选交清单 |
+| GET | `/api/doc_version/selection?...` | 仅返回选交清单 |
+| GET | `/api/doc_version/versions?doc_id=` | 版本列表与记录附件是否可用 |
+| POST | `/api/result_deliver/incremental` | 按选交清单生成增量包并出回执 |
+| POST | `/api/result_deliver/resume` | 按 request_key 续传同一次请求 |
+| GET | `/api/result_deliver/verify?request_key=` | 导入前端点依赖校验 |
+| GET | `/api/result_deliver/receipt?request_key=` | 读取回执 |
+| GET | `/api/result_deliver/receipts` | 全部回执 |
+
+### 定位规则
+
+- 实体身份键：`实体类型|实体文本|分块编号`；关系身份键：`头实体|关系类型|尾实体`。
+- `recognized_at` / `extracted_at` 等每次抽取都会变的字段不参与内容比较。
+- 变动条目带 `before` / `after`（版本号 + record_id + 原始记录），
+  记录编号被复用时用 `replaces` / `replaced_by` 互指。
+
+### 接收方基准三态
+
+| 模式 | 条件 | 包内数据 |
+| --- | --- | --- |
+| `incremental` | 持有基准且可核实 | 只含变更实体/关系 + 删除墓碑；未变更端点按基准已存在 |
+| `closure` | 持有基准但无法核实 | 变更记录 + 墓碑 + 关系端点实体随包补齐；不把依赖视为已存在 |
+| `full` | 首次下载 | 目标版本完整实体与关系，无墓碑 |
+
+### 交付与回执
+
+一次交付请求由 `(文档, 基准版本, 目标版本, 接收方, 模式)` 唯一确定 `request_key`。
+打包写到 `data/deliveries/REQ-*/`，中断后同一请求续传不会重开新交付；
+已成功的同一请求再次提交会返回原回执（`duplicate_suppressed`）。
+回执列出依赖对象、角色与所属版本，便于目标导入时判断端点能否补齐。
+
+## 领域：数据工程
 子方向：数据采集、爬虫与RPA

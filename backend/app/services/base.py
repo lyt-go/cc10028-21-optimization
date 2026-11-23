@@ -141,6 +141,32 @@ class BaseModuleService:
                         continue
         return records
 
+    def _write_jsonl_replace(self, filepath: Path, records: list[dict[str, Any]]) -> int:
+        """覆盖写入JSONL文件。版本快照和增量清单需要幂等覆盖，不能像产物日志那样追加。"""
+        _ensure_dir(filepath.parent)
+        with open(filepath, "w", encoding="utf-8") as f:
+            for rec in records:
+                f.write(json.dumps(rec, ensure_ascii=False, default=str) + "\n")
+        return len(records)
+
+    def _write_json(self, filepath: Path, payload: dict[str, Any]) -> Path:
+        """覆盖写入单个JSON对象，用于增量包、回执和导入状态等需要原子替换的数据。"""
+        _ensure_dir(filepath.parent)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2, default=str)
+        return filepath
+
+    def _read_json(self, filepath: Path) -> dict[str, Any] | None:
+        """读取单个JSON对象，不存在或损坏时返回None。"""
+        if not filepath.exists():
+            return None
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return None
+        return data if isinstance(data, dict) else None
+
     def _write_checkpoint(self, name: str, state: dict[str, Any]) -> Path:
         """写入检查点文件，用于中断恢复与游标推进。检查点记录当前处理偏移和状态。"""
 # 数据操作：存储检查点数据管理中断恢复与游标推进

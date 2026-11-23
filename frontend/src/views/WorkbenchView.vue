@@ -15,6 +15,14 @@
       </div>
     </header>
 
+    <VersionDiffPanel
+      v-if="meta.key === 'doc_version' || meta.key === 'result_deliver'"
+      :title="meta.key === 'result_deliver' ? '增量交付与回执核对' : '版本差异检索与选交'"
+      :subtitle="meta.key === 'result_deliver'
+        ? '从选交清单生成增量数据包，失败后识别同一次请求续传，并核对回执依赖。'
+        : '比较两个版本快照的记录级差异，按接收方基准形成版本差异选交清单。'"
+    />
+
     <div class="stat-row">
       <article v-for="item in stats" :key="item.label" class="stat-card">
         <span class="stat-label">{{ item.label }}</span>
@@ -104,6 +112,7 @@ import {
   runAction as applyAction,
 } from '@/api/backend-service'
 import type { EntryRow } from '@/data/types'
+import VersionDiffPanel from '@/components/VersionDiffPanel.vue'
 
 const props = defineProps<{ moduleKey: string }>()
 const meta = moduleMeta(props.moduleKey)
